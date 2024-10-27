@@ -1,14 +1,12 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs";
-    mvn2nix = {
-      url = "github:fzakaria/mvn2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    mvn2nix.url = "github:fzakaria/mvn2nix";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = {
+    self,
     nixpkgs,
     mvn2nix,
     flake-utils,
@@ -16,9 +14,8 @@
   }: let
   in
     flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = import nixpkgs {
-        inherit system;
-      };
+      pkgs = import nixpkgs { inherit system; };
+      lib = pkgs.lib;
     in {
       packages.default = let
         mavenRepository =
@@ -29,7 +26,7 @@
           pname = "ultrastarCatalog";
           version = "0.2";
           name = "${pname}-${version}";
-          src = pkgs.lib.cleanSource ./.;
+          src = lib.cleanSource ./.;
 
           nativeBuildInputs = with pkgs; [
             jdk21_headless
@@ -60,5 +57,21 @@
                   --add-flags "-jar $out/${name}.jar"
           '';
         };
+
+      packages.update = pkgs.writeShellApplication {
+        name = "update-mvn2nix-lockfile";
+      
+        text = ''
+          ${mvn2nix.legacyPackages.${system}.mvn2nix}/bin/mvn2nix --verbose --jdk=${pkgs.openjdk21} > mvn2nix-lock.json
+        '';
+      };
+
+      apps.default = flake-utils.lib.mkApp {
+        drv = self.packages.${system}.default;
+      };
+      
+      apps.update = flake-utils.lib.mkApp {
+        drv = self.packages.${system}.update;
+      };
     });
 }
